@@ -1,0 +1,30 @@
+# Interface utilisateur
+streamlit==1.29.0
+streamlit-chat==0.1.1
+
+# LLM APIs
+requests==2.31.0
+openai==1.6.1
+google-generativeai==0.3.2
+anthropic==0.7.8
+
+# Audio
+sounddevice==0.4.6
+scipy==1.11.4
+numpy==1.26.3
+librosa==0.10.1
+soundfile==0.12.1
+
+# Utilitaires
+python-dotenv==1.0.0
+pydantic==2.5.3
+loguru==0.7.2
+python-multipart==0.0.6
+asyncio==3.4.3
+aiohttp==3.9.1
+keyring==24.3.0
+
+# Tests
+pytest==7.4.4
+pytest-asyncio==0.23.3
+pytest-cov==4.1.0
