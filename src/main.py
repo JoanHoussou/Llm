@@ -5,6 +5,8 @@ Configure et lance l'interface utilisateur Streamlit.
 import os
 import time
 import asyncio
+import json
+import aiohttp
 from typing import Optional, Dict, List
 import streamlit as st
 from loguru import logger
@@ -12,6 +14,8 @@ from loguru import logger
 from api.base import ProviderType, ModelType, Message, LLMProvider
 from api.mistral import MistralProvider
 from api.gemini import GeminiProvider
+from api.lm_studio import LMStudioProvider
+from api.ollama import OllamaProvider
 from config.settings import ConfigManager
 from audio.manager import AudioManager, AudioError
 
@@ -60,6 +64,36 @@ def run_async(coro):
         loop = asyncio.get_event_loop()
         return loop.run_until_complete(coro)
 
+async def get_ollama_models(base_url: str) -> List[str]:
+    """
+    Récupère la liste des modèles disponibles sur Ollama.
+    
+    Args:
+        base_url: URL de l'API Ollama
+
+    Returns:
+        Liste des noms de modèles
+    """
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"{base_url}/api/tags") as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if 'models' in data:
+                        # La réponse contient tous les modèles sous forme de liste
+                        return sorted([model['name'] for model in data['models']])
+                    else:
+                        logger.warning("Format de réponse Ollama inattendu")
+                        return ["mistral", "llama2"]
+                else:
+                    error_detail = await resp.text()
+                    logger.error(f"Erreur lors de la récupération des modèles: {error_detail}")
+    except Exception as e:
+        logger.warning(f"Erreur lors de la récupération des modèles Ollama: {e}")
+    
+    # Liste par défaut si erreur
+    return ["mistral", "llama2", "codellama", "mixtral"]
+
 async def initialize_provider(provider_type: ProviderType) -> Optional[LLMProvider]:
     """
     Initialise un provider LLM.
@@ -77,6 +111,10 @@ async def initialize_provider(provider_type: ProviderType) -> Optional[LLMProvid
             provider = MistralProvider(config)
         elif provider_type == ProviderType.GEMINI:
             provider = GeminiProvider(config)
+        elif provider_type == ProviderType.LM_STUDIO:
+            provider = LMStudioProvider(config)
+        elif provider_type == ProviderType.OLLAMA:
+            provider = OllamaProvider(config)
         else:
             st.warning(f"Provider {provider_type} non implémenté")
             return None
@@ -141,7 +179,36 @@ def render_sidebar():
                     run_async(change_provider(provider_type))
                     
             elif provider in [ProviderType.LM_STUDIO, ProviderType.OLLAMA]:
-                st.info("Configuration du modèle local à venir...")
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    base_url = st.text_input(
+                        f"URL API {provider.value}",
+                        value=st.session_state.config_manager.get_model_config(provider).base_url or "",
+                        help=f"URL de base pour l'API {provider.value} locale"
+                    )
+                
+                config = st.session_state.config_manager.get_model_config(provider)
+                
+                with col2:
+                    # Liste des modèles disponibles
+                    if provider == ProviderType.OLLAMA and base_url:
+                        models = run_async(get_ollama_models(base_url))
+                        logger.debug(f"Modèles Ollama trouvés: {models}")
+                    else:
+                        models = ["llama2", "mistral", "vicuna"]
+
+                    model_name = st.selectbox(
+                        "Modèle",
+                        options=models,
+                        index=0 if config.name not in models else models.index(config.name)
+                    )
+                
+                if base_url:
+                    config.base_url = base_url
+                    config.name = model_name
+                    st.session_state.config_manager.save_model_config(config)
+                    run_async(change_provider(provider_type))
             
         # Paramètres du modèle
         st.subheader("Paramètres")
@@ -205,14 +272,11 @@ async def process_chat_response(prompt: str):
             )
         )
 
-        async with st.session_state.current_provider:
-            # Génération de la réponse
-            response = await st.session_state.current_provider.chat_completion(
-                messages=chat_messages,
-                temperature=st.session_state.get("temperature", 0.7)
-            )
-            
-            return response
+        # Génération de la réponse
+        return await st.session_state.current_provider.chat_completion(
+            messages=chat_messages,
+            temperature=st.session_state.get("temperature", 0.7)
+        )
 
     except Exception as e:
         st.error(f"Erreur lors de la génération de la réponse: {e}")

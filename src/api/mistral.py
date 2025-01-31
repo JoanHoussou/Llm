@@ -22,7 +22,7 @@ class MistralProvider(LLMProvider):
     Implémente les méthodes de l'interface LLMProvider pour Mistral.
     """
 
-    API_URL = "https://codestral.mistral.ai/v1/"
+    API_URL = "https://codestral.mistral.ai"
 
     def __init__(self, config: ModelConfig):
         """
@@ -114,7 +114,7 @@ class MistralProvider(LLMProvider):
             if max_tokens:
                 params["max_tokens"] = max_tokens
 
-            endpoint = "chat/completions"
+            endpoint = "/v1/chat/completions"
             if stream:
                 return self._stream_response(endpoint, params)
 

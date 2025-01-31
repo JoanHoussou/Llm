@@ -22,7 +22,7 @@ class GeminiProvider(LLMProvider):
     Implémente les méthodes de l'interface LLMProvider pour Google Gemini.
     """
 
-    API_URL = "https://generativelanguage.googleapis.com/v1/"
+    API_URL = "https://generativelanguage.googleapis.com"
 
     def __init__(self, config: ModelConfig):
         """
@@ -109,7 +109,7 @@ class GeminiProvider(LLMProvider):
                 }
             }
 
-            endpoint = f"models/{self.config.name}:generateContent"
+            endpoint = f"/v1/models/{self.config.name}:generateContent"
             url = f"{endpoint}?key={self.config.api_key}"
 
             if stream:
